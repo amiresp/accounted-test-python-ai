@@ -4,7 +4,7 @@ import json
 import os
 from datetime import datetime
 
-auth_bp = Blueprint('auth', __name__)
+auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
 # Get the absolute path to the data directory
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
@@ -13,12 +13,12 @@ USERS_FILE = os.path.join(DATA_DIR, 'users.json')
 def ensure_users_file():
     os.makedirs(DATA_DIR, exist_ok=True)
     if not os.path.exists(USERS_FILE):
-        with open(USERS_FILE, 'w') as f:
+        with open(USERS_FILE, 'w', encoding='utf-8') as f:
             json.dump([{
-                "id": "1",
-                "username": "admin",
-                "password": "admin123"
-            }], f, indent=2)
+                'id': '1',
+                'username': 'admin',
+                'password': 'admin123'
+            }], f, ensure_ascii=False)
 
 class User(UserMixin):
     def __init__(self, id, username, password):
@@ -26,13 +26,16 @@ class User(UserMixin):
         self.username = username
         self.password = password
 
+    def get_id(self):
+        return str(self.id)
+
     @staticmethod
     def get(user_id):
         try:
             ensure_users_file()
-            with open(USERS_FILE, 'r') as f:
+            with open(USERS_FILE, 'r', encoding='utf-8') as f:
                 users = json.load(f)
-                user_data = next((u for u in users if u['id'] == user_id), None)
+                user_data = next((u for u in users if str(u['id']) == str(user_id)), None)
                 if user_data:
                     return User(user_data['id'], user_data['username'], user_data['password'])
         except Exception as e:
@@ -44,20 +47,17 @@ class User(UserMixin):
     def get_by_username(username):
         try:
             ensure_users_file()
-            with open(USERS_FILE, 'r') as f:
+            with open(USERS_FILE, 'r', encoding='utf-8') as f:
                 users = json.load(f)
-                print(f"Looking for user {username} in users: {users}")
                 user_data = next((u for u in users if u['username'] == username), None)
                 if user_data:
-                    print(f"Found user data: {user_data}")
                     return User(user_data['id'], user_data['username'], user_data['password'])
-                print(f"No user found with username: {username}")
         except Exception as e:
             print(f"Error in get_by_username: {str(e)}")
             return None
         return None
 
-@auth_bp.route('/api/auth/test-users', methods=['GET'])
+@auth_bp.route('/test-users', methods=['GET'])
 def test_users():
     try:
         ensure_users_file()
@@ -67,54 +67,57 @@ def test_users():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@auth_bp.route('/api/auth/login', methods=['POST'])
+@auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
+    if request.method == 'GET':
+        return jsonify({'error': 'Please use POST method for login'}), 405
+        
     try:
-        print("Login route called")
-        print(f"Request headers: {dict(request.headers)}")
-        print(f"Request data: {request.get_data()}")
-        
         data = request.get_json()
-        print(f"Parsed JSON data: {data}")
-        
-        username = data.get('username')
-        password = data.get('password')
+        if not data or 'username' not in data or 'password' not in data:
+            return jsonify({'error': 'Missing username or password'}), 400
 
-        print(f"Username: {username}")
-        print(f"Password: {password}")
-
-        if not username or not password:
-            print("Missing username or password")
-            return jsonify({'error': 'Username and password are required'}), 400
+        username = data['username']
+        password = data['password']
 
         user = User.get_by_username(username)
-        print(f"User object: {user.__dict__ if user else None}")
-        
-        if user and user.password == password:  # In production, use proper password hashing
-            print("Password match successful")
-            login_user(user)
-            print("Login successful")
+        if user and user.password == password:
+            print(f"Logging in user: {user.username}")
+            login_user(user, remember=True)
+            session.permanent = True
+            print(f"Session after login: {dict(session)}")
             return jsonify({
-                'id': user.id,
-                'username': user.username
-            })
-        
-        print("Invalid credentials")
-        return jsonify({'error': 'Invalid credentials'}), 401
+                'message': 'Login successful',
+                'user': {
+                    'id': user.id,
+                    'username': user.username
+                }
+            }), 200
+        else:
+            return jsonify({'error': 'Invalid credentials'}), 401
     except Exception as e:
-        print(f"Error in login route: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
+        print(f"Login error: {str(e)}")
+        return jsonify({'error': 'Login failed'}), 500
 
-@auth_bp.route('/api/auth/logout', methods=['POST'])
+@auth_bp.route('/logout')
 @login_required
 def logout():
+    print(f"Logging out user: {current_user.username if current_user else 'None'}")
     logout_user()
-    return jsonify({'message': 'Logged out successfully'})
+    session.clear()
+    return jsonify({'message': 'Logged out successfully'}), 200
 
-@auth_bp.route('/api/auth/me', methods=['GET'])
+@auth_bp.route('/current-user')
 @login_required
 def get_current_user():
+    print(f"Current user check - Session: {dict(session)}")
+    print(f"Current user check - User: {current_user.username if current_user else 'None'}")
+    print(f"Current user check - Is authenticated: {current_user.is_authenticated if current_user else False}")
+    
+    if not current_user.is_authenticated:
+        return jsonify({'error': 'Not authenticated'}), 401
+        
     return jsonify({
         'id': current_user.id,
         'username': current_user.username
-    }) 
+    }), 200 

@@ -122,68 +122,120 @@ def get_top_customers():
         print(f"Error in top-customers: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
+def get_reports_file():
+    data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
+    os.makedirs(data_dir, exist_ok=True)
+    return os.path.join(data_dir, 'reports.json')
+
+def get_default_date_range():
+    today = datetime.now()
+    # Set to first day of current month
+    current_month_start = today.replace(day=1)
+    # Set to first day of previous month
+    previous_month_start = (current_month_start - timedelta(days=1)).replace(day=1)
+    # Set to last day of current month
+    current_month_end = (current_month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    
+    return previous_month_start.strftime('%Y-%m-%d'), current_month_end.strftime('%Y-%m-%d')
+
 @reports_bp.route('/income-expenses', methods=['GET'])
-@login_required
 def get_income_expenses():
     try:
-        invoices, _ = load_data()
-        
-        # Get date range from query parameters
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
-        
+
+        # If dates are not provided, use default range (previous month to current month)
         if not start_date or not end_date:
-            return jsonify({'error': 'Start date and end date are required'}), 400
-        
+            start_date, end_date = get_default_date_range()
+
+        # Convert ISO format dates to datetime objects
         try:
-            start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-            end_date = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+            # Remove timezone info and parse date
+            start = datetime.fromisoformat(start_date.replace('Z', '+00:00').split('T')[0])
+            end = datetime.fromisoformat(end_date.replace('Z', '+00:00').split('T')[0])
         except ValueError as e:
             print(f"Date parsing error: {str(e)}")
-            return jsonify({'error': 'Invalid date format'}), 400
-        
-        # Initialize data structure for daily totals
-        daily_data = {}
-        current_date = start_date
-        while current_date <= end_date:
-            daily_data[current_date.isoformat()] = {
+            return jsonify({
                 'income': 0,
-                'expenses': 0
-            }
-            current_date += timedelta(days=1)
-        
-        # Process invoices
+                'expenses': 0,
+                'net': 0,
+                'start_date': start_date,
+                'end_date': end_date,
+                'invoice_count': 0,
+                'message': 'Invalid date format, using default values'
+            })
+
+        # Ensure data files exist
+        ensure_data_files()
+
+        # Read invoices data
+        try:
+            with open(INVOICES_FILE, 'r') as f:
+                invoices = json.load(f)
+                if not isinstance(invoices, list):
+                    print("Error: Invalid data format in invoices file")
+                    invoices = []
+        except json.JSONDecodeError:
+            print("Error: Invalid JSON in invoices file")
+            invoices = []
+        except Exception as e:
+            print(f"Error reading invoices file: {str(e)}")
+            invoices = []
+
+        # Filter invoices by date range
+        filtered_invoices = []
         for invoice in invoices:
             try:
-                invoice_date = datetime.fromisoformat(invoice['date'].replace('Z', '+00:00'))
-                if start_date <= invoice_date <= end_date:
-                    date_key = invoice_date.isoformat()
-                    if invoice['status'] == 'paid':
-                        daily_data[date_key]['income'] += invoice['total']
-            except (ValueError, KeyError) as e:
-                print(f"Error processing invoice: {str(e)}")
+                if not isinstance(invoice, dict):
+                    continue
+                    
+                invoice_date = datetime.strptime(invoice.get('date', ''), '%Y-%m-%d')
+                if start <= invoice_date <= end:
+                    filtered_invoices.append(invoice)
+            except (ValueError, TypeError) as e:
+                print(f"Error processing invoice date: {str(e)}")
                 continue
-        
-        # Convert to array format for chart.js
-        chart_data = {
-            'labels': list(daily_data.keys()),
-            'datasets': [
-                {
-                    'label': 'Income',
-                    'data': [day['income'] for day in daily_data.values()],
-                    'borderColor': 'rgb(75, 192, 192)',
-                    'tension': 0.1
-                },
-                {
-                    'label': 'Expenses',
-                    'data': [day['expenses'] for day in daily_data.values()],
-                    'borderColor': 'rgb(255, 99, 132)',
-                    'tension': 0.1
-                }
-            ]
+
+        # Calculate totals with error handling
+        income = 0
+        expenses = 0
+        for invoice in filtered_invoices:
+            try:
+                total = float(invoice.get('total', 0))
+                invoice_type = invoice.get('type', '').lower()
+                if invoice_type == 'income':
+                    income += total
+                elif invoice_type == 'expense':
+                    expenses += total
+            except (ValueError, TypeError) as e:
+                print(f"Error processing invoice total: {str(e)}")
+                continue
+
+        net = income - expenses
+
+        response = {
+            'income': income,
+            'expenses': expenses,
+            'net': net,
+            'start_date': start_date,
+            'end_date': end_date,
+            'invoice_count': len(filtered_invoices)
         }
-        
-        return jsonify(chart_data), 200
+
+        # Add message if no data
+        if len(filtered_invoices) == 0:
+            response['message'] = 'No data available for the selected period'
+
+        return jsonify(response)
+
     except Exception as e:
-        print(f"Error in income-expenses: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500 
+        print(f"Error in income-expenses report: {str(e)}")
+        return jsonify({
+            'income': 0,
+            'expenses': 0,
+            'net': 0,
+            'start_date': start_date if 'start_date' in locals() else None,
+            'end_date': end_date if 'end_date' in locals() else None,
+            'invoice_count': 0,
+            'message': 'Error generating report'
+        }) 

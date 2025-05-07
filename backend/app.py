@@ -15,28 +15,42 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# Configure CORS
+# Session configuration
+app.config.update(
+    SECRET_KEY=os.getenv('SECRET_KEY', 'dev-key-please-change-in-production'),
+    SESSION_COOKIE_SECURE=False,  # Set to True in production with HTTPS
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_PATH='/',
+    PERMANENT_SESSION_LIFETIME=2592000,  # 30 days
+    SESSION_REFRESH_EACH_REQUEST=True,
+    SESSION_TYPE='filesystem'
+)
+
+# Configure CORS with more specific settings
 CORS(app, 
-     supports_credentials=True,
-     origins=['http://localhost:3000'],
-     allow_headers=['Content-Type', 'Authorization'],
-     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
+     resources={r"/api/*": {
+         "origins": ["http://localhost:3000"],
+         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+         "allow_headers": ["Content-Type", "Authorization"],
+         "expose_headers": ["Content-Type"],
+         "supports_credentials": True,
+         "max_age": 3600
+     }},
+     supports_credentials=True)
 
-# Configure app
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-please-change-in-production')
-app.config['JSON_SORT_KEYS'] = False
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-
-# Initialize login manager
+# Configure Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = 'auth.login'
+login_manager.login_view = None  # Disable default login view
+login_manager.session_protection = 'strong'
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.get(user_id)
+    print(f"Loading user with ID: {user_id}")
+    user = User.get(user_id)
+    print(f"Loaded user: {user.username if user else 'None'}")
+    return user
 
 # Register blueprints
 app.register_blueprint(auth_bp)

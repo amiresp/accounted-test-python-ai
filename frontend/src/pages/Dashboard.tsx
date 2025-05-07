@@ -22,57 +22,31 @@ ChartJS.register(
     Legend
 );
 
-interface DashboardData {
-    profitLoss: {
-        total_income: number;
-        total_expenses: number;
-        net_profit: number;
-    };
-    incomeExpenses: {
-        labels: string[];
-        datasets: {
-            label: string;
-            data: number[];
-        }[];
-    };
-    topCustomers: {
-        id: string;
-        name: string;
-        revenue: number;
-    }[];
+interface ReportData {
+    income: number;
+    expenses: number;
+    net: number;
+    start_date: string;
+    end_date: string;
+    invoice_count: number;
+    message?: string;
 }
 
 const Dashboard: React.FC = () => {
-    const [data, setData] = useState<DashboardData | null>(null);
+    const [reportData, setReportData] = useState<ReportData | null>(null);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                // Calculate date range for the last 30 days
-                const endDate = new Date();
-                const startDate = new Date();
-                startDate.setDate(startDate.getDate() - 30);
-
-                const [profitLoss, incomeExpenses, topCustomers] = await Promise.all([
-                    axios.get('http://localhost:5000/api/reports/profit-loss'),
-                    axios.get('http://localhost:5000/api/reports/income-expenses', {
-                        params: {
-                            start_date: startDate.toISOString(),
-                            end_date: endDate.toISOString()
-                        }
-                    }),
-                    axios.get('http://localhost:5000/api/reports/top-customers'),
-                ]);
-
-                setData({
-                    profitLoss: profitLoss.data,
-                    incomeExpenses: incomeExpenses.data,
-                    topCustomers: topCustomers.data,
-                });
+                setLoading(true);
+                const response = await axios.get('/api/reports/income-expenses');
+                setReportData(response.data);
+                setError(null);
             } catch (err) {
-                setError('Failed to load dashboard data');
+                console.error('Error fetching report data:', err);
+                setError('Failed to load report data');
             } finally {
                 setLoading(false);
             }
@@ -82,103 +56,75 @@ const Dashboard: React.FC = () => {
     }, []);
 
     if (loading) {
-        return <div>Loading...</div>;
+        return (
+            <div className="p-4">
+                <div className="animate-pulse">
+                    <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="h-32 bg-gray-200 rounded"></div>
+                        <div className="h-32 bg-gray-200 rounded"></div>
+                        <div className="h-32 bg-gray-200 rounded"></div>
+                    </div>
+                </div>
+            </div>
+        );
     }
 
     if (error) {
-        return <div className="text-red-500">{error}</div>;
-    }
-
-    if (!data) {
-        return null;
+        return (
+            <div className="p-4">
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                    {error}
+                </div>
+            </div>
+        );
     }
 
     return (
-        <div className="space-y-6">
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                <div className="bg-white overflow-hidden shadow rounded-lg">
-                    <div className="px-4 py-5 sm:p-6">
-                        <dt className="text-sm font-medium text-gray-500 truncate">
-                            Total Income
-                        </dt>
-                        <dd className="mt-1 text-3xl font-semibold text-gray-900">
-                            ${data.profitLoss.total_income.toFixed(2)}
-                        </dd>
-                    </div>
-                </div>
+        <div className="p-4">
+            <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
 
-                <div className="bg-white overflow-hidden shadow rounded-lg">
-                    <div className="px-4 py-5 sm:p-6">
-                        <dt className="text-sm font-medium text-gray-500 truncate">
-                            Total Expenses
-                        </dt>
-                        <dd className="mt-1 text-3xl font-semibold text-gray-900">
-                            ${data.profitLoss.total_expenses.toFixed(2)}
-                        </dd>
-                    </div>
+            {reportData?.message && (
+                <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded mb-4">
+                    {reportData.message}
                 </div>
+            )}
 
-                <div className="bg-white overflow-hidden shadow rounded-lg">
-                    <div className="px-4 py-5 sm:p-6">
-                        <dt className="text-sm font-medium text-gray-500 truncate">
-                            Net Profit
-                        </dt>
-                        <dd className="mt-1 text-3xl font-semibold text-gray-900">
-                            ${data.profitLoss.net_profit.toFixed(2)}
-                        </dd>
-                    </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="bg-white p-6 rounded-lg shadow">
+                    <h3 className="text-gray-500 text-sm font-medium">Total Income</h3>
+                    <p className="text-2xl font-bold text-green-600">
+                        ${reportData?.income.toFixed(2) || '0.00'}
+                    </p>
+                </div>
+                <div className="bg-white p-6 rounded-lg shadow">
+                    <h3 className="text-gray-500 text-sm font-medium">Total Expenses</h3>
+                    <p className="text-2xl font-bold text-red-600">
+                        ${reportData?.expenses.toFixed(2) || '0.00'}
+                    </p>
+                </div>
+                <div className="bg-white p-6 rounded-lg shadow">
+                    <h3 className="text-gray-500 text-sm font-medium">Net Profit</h3>
+                    <p className={`text-2xl font-bold ${reportData?.net && reportData.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ${reportData?.net.toFixed(2) || '0.00'}
+                    </p>
                 </div>
             </div>
 
-            <div className="bg-white shadow rounded-lg p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">
-                    Income vs Expenses
-                </h3>
-                <div className="h-80">
-                    <Line
-                        data={data.incomeExpenses}
-                        options={{
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                },
-                            },
-                        }}
-                    />
-                </div>
-            </div>
-
-            <div className="bg-white shadow rounded-lg p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">
-                    Top Customers
-                </h3>
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Customer
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Revenue
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {data.topCustomers.map((customer) => (
-                                <tr key={customer.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                        {customer.name}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        ${customer.revenue.toFixed(2)}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+            <div className="bg-white p-6 rounded-lg shadow">
+                <h2 className="text-lg font-semibold mb-4">Summary</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <p className="text-gray-600">Period</p>
+                        <p className="font-medium">
+                            {reportData?.start_date ? new Date(reportData.start_date).toLocaleDateString() : 'N/A'} -
+                            {reportData?.end_date ? new Date(reportData.end_date).toLocaleDateString() : 'N/A'}
+                        </p>
+                    </div>
+                    <div>
+                        <p className="text-gray-600">Total Invoices</p>
+                        <p className="font-medium">{reportData?.invoice_count || 0}</p>
+                    </div>
                 </div>
             </div>
         </div>
