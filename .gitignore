@@ -1,0 +1,44 @@
+# Node.js / React
+node_modules/
+build/
+coverage/
+.env
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+.DS_Store
+*.pem
+*.p12
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.db
+*.sqlite
+*.log
+*.pot
+*.mo
+*.env
+*.venv/
+*venv/
+*.egg-info/
+dist/
+build/
+*.bak
+*.swp
+
+# PyCharm
+.idea/
+
+# VSCode
+.vscode/
+
+# OS-specific
+Thumbs.db
+ehthumbs.db
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
