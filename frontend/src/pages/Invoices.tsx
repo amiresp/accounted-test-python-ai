@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import DataManagement from '../components/DataManagement';
 
 interface Invoice {
     id: string;
@@ -7,8 +8,10 @@ interface Invoice {
     customer_name: string;
     date: string;
     due_date: string;
+    payment_date?: string;
+    payment_info?: string;
     total: number;
-    status: string;
+    status: 'pending' | 'paid' | 'overdue' | 'cancelled';
     items: InvoiceItem[];
 }
 
@@ -32,10 +35,21 @@ const Invoices: React.FC = () => {
     const [error, setError] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
-    const [newInvoice, setNewInvoice] = useState({
+    const [newInvoice, setNewInvoice] = useState<{
+        customer_id: string;
+        date: string;
+        due_date: string;
+        payment_date: string;
+        payment_info: string;
+        status: Invoice['status'];
+        items: { description: string; quantity: number; unit_price: number; amount: number; }[];
+    }>({
         customer_id: '',
         date: new Date().toISOString().split('T')[0],
         due_date: '',
+        payment_date: '',
+        payment_info: '',
+        status: 'pending',
         items: [{ description: '', quantity: 1, unit_price: 0, amount: 0 }]
     });
 
@@ -78,6 +92,9 @@ const Invoices: React.FC = () => {
                 customer_id: '',
                 date: new Date().toISOString().split('T')[0],
                 due_date: '',
+                payment_date: '',
+                payment_info: '',
+                status: 'pending',
                 items: [{ description: '', quantity: 1, unit_price: 0, amount: 0 }]
             });
             fetchInvoices();
@@ -92,6 +109,9 @@ const Invoices: React.FC = () => {
             customer_id: invoice.customer_id,
             date: invoice.date,
             due_date: invoice.due_date,
+            payment_date: invoice.payment_date || '',
+            payment_info: invoice.payment_info || '',
+            status: invoice.status,
             items: invoice.items.map(item => ({
                 description: item.description,
                 quantity: item.quantity,
@@ -113,6 +133,22 @@ const Invoices: React.FC = () => {
         }
     };
 
+    const handleStatusChange = async (id: string, newStatus: Invoice['status']) => {
+        try {
+            const invoice = invoices.find(inv => inv.id === id);
+            if (!invoice) return;
+
+            await axios.put(`/api/invoices/${id}`, {
+                ...invoice,
+                status: newStatus,
+                payment_date: newStatus === 'paid' ? new Date().toISOString().split('T')[0] : invoice.payment_date
+            });
+            fetchInvoices();
+        } catch (err) {
+            setError('Failed to update invoice status');
+        }
+    };
+
     const handleCloseModal = () => {
         setShowModal(false);
         setEditingInvoice(null);
@@ -120,6 +156,9 @@ const Invoices: React.FC = () => {
             customer_id: '',
             date: new Date().toISOString().split('T')[0],
             due_date: '',
+            payment_date: '',
+            payment_info: '',
+            status: 'pending',
             items: [{ description: '', quantity: 1, unit_price: 0, amount: 0 }]
         });
     };
@@ -143,6 +182,19 @@ const Invoices: React.FC = () => {
         setNewInvoice({ ...newInvoice, items: newItems });
     };
 
+    const getStatusColor = (status: Invoice['status']) => {
+        switch (status) {
+            case 'paid':
+                return 'bg-green-100 text-green-800';
+            case 'overdue':
+                return 'bg-red-100 text-red-800';
+            case 'cancelled':
+                return 'bg-gray-100 text-gray-800';
+            default:
+                return 'bg-yellow-100 text-yellow-800';
+        }
+    };
+
     if (loading) return <div>Loading...</div>;
     if (error) return <div className="text-red-500">{error}</div>;
 
@@ -150,12 +202,15 @@ const Invoices: React.FC = () => {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-gray-900">Invoices</h2>
-                <button
-                    onClick={() => setShowModal(true)}
-                    className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-                >
-                    Create Invoice
-                </button>
+                <div className="flex items-center space-x-4">
+                    <DataManagement onImportSuccess={fetchInvoices} />
+                    <button
+                        onClick={() => setShowModal(true)}
+                        className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+                    >
+                        Create Invoice
+                    </button>
+                </div>
             </div>
 
             <div className="bg-white shadow rounded-lg overflow-hidden">
@@ -165,6 +220,7 @@ const Invoices: React.FC = () => {
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment Date</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -178,8 +234,20 @@ const Invoices: React.FC = () => {
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{invoice.date}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{invoice.due_date}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{invoice.payment_date || '-'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${invoice.total.toFixed(2)}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{invoice.status}</td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    <select
+                                        value={invoice.status}
+                                        onChange={(e) => handleStatusChange(invoice.id, e.target.value as Invoice['status'])}
+                                        className={`text-sm rounded-full px-2 py-1 font-semibold ${getStatusColor(invoice.status)}`}
+                                    >
+                                        <option value="pending">Pending</option>
+                                        <option value="paid">Paid</option>
+                                        <option value="overdue">Overdue</option>
+                                        <option value="cancelled">Cancelled</option>
+                                    </select>
+                                </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <button
                                         onClick={() => handleEdit(invoice)}
@@ -244,6 +312,44 @@ const Invoices: React.FC = () => {
                                         onChange={(e) => setNewInvoice({ ...newInvoice, due_date: e.target.value })}
                                     />
                                 </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Status</label>
+                                    <select
+                                        required
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                        value={newInvoice.status}
+                                        onChange={(e) => setNewInvoice({ ...newInvoice, status: e.target.value as Invoice['status'] })}
+                                    >
+                                        <option value="pending">Pending</option>
+                                        <option value="paid">Paid</option>
+                                        <option value="overdue">Overdue</option>
+                                        <option value="cancelled">Cancelled</option>
+                                    </select>
+                                </div>
+                                {newInvoice.status === 'paid' && (
+                                    <>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">Payment Date</label>
+                                            <input
+                                                type="date"
+                                                required
+                                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                                value={newInvoice.payment_date}
+                                                onChange={(e) => setNewInvoice({ ...newInvoice, payment_date: e.target.value })}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">Payment Info</label>
+                                            <input
+                                                type="text"
+                                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                                value={newInvoice.payment_info}
+                                                onChange={(e) => setNewInvoice({ ...newInvoice, payment_info: e.target.value })}
+                                                placeholder="e.g., Check #1234, Bank Transfer"
+                                            />
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
                             <div className="mt-6">

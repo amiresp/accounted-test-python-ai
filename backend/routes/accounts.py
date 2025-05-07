@@ -1,68 +1,69 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify, request
 from flask_login import login_required
 import json
 import os
 
-bp = Blueprint('accounts', __name__, url_prefix='/api/accounts')
+accounts_bp = Blueprint('accounts', __name__)
 
-ACCOUNTS_FILE = 'data/accounts.json'
+def get_accounts_file():
+    return 'data/accounts.json'
 
 def ensure_accounts_file():
     os.makedirs('data', exist_ok=True)
-    if not os.path.exists(ACCOUNTS_FILE):
-        with open(ACCOUNTS_FILE, 'w') as f:
+    if not os.path.exists(get_accounts_file()):
+        with open(get_accounts_file(), 'w') as f:
             json.dump([], f)
 
-@bp.route('/', methods=['GET'])
+@accounts_bp.route('/api/accounts', methods=['GET'])
 @login_required
 def get_accounts():
     ensure_accounts_file()
-    with open(ACCOUNTS_FILE, 'r') as f:
+    with open(get_accounts_file(), 'r') as f:
         accounts = json.load(f)
-    return jsonify(accounts), 200
+    return jsonify(accounts)
 
-@bp.route('/', methods=['POST'])
+@accounts_bp.route('/api/accounts', methods=['POST'])
 @login_required
 def create_account():
+    ensure_accounts_file()
     data = request.get_json()
-    required_fields = ['name', 'type', 'number']
     
+    # Validate required fields
+    required_fields = ['name', 'type', 'number', 'zone']
     if not all(field in data for field in required_fields):
         return jsonify({'error': 'Missing required fields'}), 400
-
-    ensure_accounts_file()
     
-    with open(ACCOUNTS_FILE, 'r') as f:
+    # Generate a unique ID
+    with open(get_accounts_file(), 'r') as f:
         accounts = json.load(f)
-
-    # Generate a simple ID (in a real app, use UUID)
-    account_id = str(len(accounts) + 1)
+        new_id = str(len(accounts) + 1)
     
+    # Create new account
     new_account = {
-        'id': account_id,
+        'id': new_id,
         'name': data['name'],
         'type': data['type'],
         'number': data['number'],
-        'zone': data.get('zone', '')
+        'zone': data['zone']
     }
     
+    # Save to file
     accounts.append(new_account)
-    
-    with open(ACCOUNTS_FILE, 'w') as f:
+    with open(get_accounts_file(), 'w') as f:
         json.dump(accounts, f, indent=2)
     
     return jsonify(new_account), 201
 
-@bp.route('/<account_id>', methods=['PUT'])
+@accounts_bp.route('/api/accounts/<account_id>', methods=['PUT'])
 @login_required
 def update_account(account_id):
+    ensure_accounts_file()
     data = request.get_json()
     
-    ensure_accounts_file()
-    
-    with open(ACCOUNTS_FILE, 'r') as f:
+    with open(get_accounts_file(), 'r') as f:
         accounts = json.load(f)
     
+    # Find and update account
     for account in accounts:
         if account['id'] == account_id:
             account.update({
@@ -72,28 +73,29 @@ def update_account(account_id):
                 'zone': data.get('zone', account['zone'])
             })
             
-            with open(ACCOUNTS_FILE, 'w') as f:
+            with open(get_accounts_file(), 'w') as f:
                 json.dump(accounts, f, indent=2)
             
-            return jsonify(account), 200
+            return jsonify(account)
     
     return jsonify({'error': 'Account not found'}), 404
 
-@bp.route('/<account_id>', methods=['DELETE'])
+@accounts_bp.route('/api/accounts/<account_id>', methods=['DELETE'])
 @login_required
 def delete_account(account_id):
     ensure_accounts_file()
     
-    with open(ACCOUNTS_FILE, 'r') as f:
+    with open(get_accounts_file(), 'r') as f:
         accounts = json.load(f)
     
+    # Find and remove account
     for i, account in enumerate(accounts):
         if account['id'] == account_id:
-            del accounts[i]
+            accounts.pop(i)
             
-            with open(ACCOUNTS_FILE, 'w') as f:
+            with open(get_accounts_file(), 'w') as f:
                 json.dump(accounts, f, indent=2)
             
-            return jsonify({'message': 'Account deleted successfully'}), 200
+            return jsonify({'message': 'Account deleted successfully'})
     
     return jsonify({'error': 'Account not found'}), 404 

@@ -52,23 +52,5 @@
     "tax_amount": 220.0,
     "total": 2420.0,
     "status": "pending"
-  },
-  {
-    "id": "4",
-    "date": "2025-04-01",
-    "customer_id": "1",
-    "items": [
-      {
-        "description": "test",
-        "quantity": 1,
-        "unit_price": 2000,
-        "amount": 200
-      }
-    ],
-    "subtotal": 2000,
-    "tax_rate": 0.1,
-    "tax_amount": 200.0,
-    "total": 2200.0,
-    "status": "pending"
   }
 ]

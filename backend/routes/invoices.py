@@ -4,7 +4,7 @@ import json
 import os
 from datetime import datetime
 
-bp = Blueprint('invoices', __name__, url_prefix='/api/invoices')
+invoices_bp = Blueprint('invoices', __name__)
 
 INVOICES_FILE = 'data/invoices.json'
 
@@ -14,7 +14,7 @@ def ensure_invoices_file():
         with open(INVOICES_FILE, 'w') as f:
             json.dump([], f)
 
-@bp.route('/', methods=['GET'])
+@invoices_bp.route('/api/invoices', methods=['GET'])
 @login_required
 def get_invoices():
     ensure_invoices_file()
@@ -22,7 +22,7 @@ def get_invoices():
         invoices = json.load(f)
     return jsonify(invoices), 200
 
-@bp.route('/', methods=['POST'])
+@invoices_bp.route('/api/invoices', methods=['POST'])
 @login_required
 def create_invoice():
     data = request.get_json()
@@ -54,7 +54,9 @@ def create_invoice():
         'tax_rate': tax_rate,
         'tax_amount': tax_amount,
         'total': total,
-        'status': data.get('status', 'pending')
+        'status': data.get('status', 'pending'),
+        'payment_date': data.get('payment_date'),
+        'payment_info': data.get('payment_info')
     }
     
     invoices.append(new_invoice)
@@ -64,7 +66,7 @@ def create_invoice():
     
     return jsonify(new_invoice), 201
 
-@bp.route('/<invoice_id>', methods=['PUT'])
+@invoices_bp.route('/api/invoices/<invoice_id>', methods=['PUT'])
 @login_required
 def update_invoice(invoice_id):
     data = request.get_json()
@@ -95,7 +97,9 @@ def update_invoice(invoice_id):
             invoice.update({
                 'date': data.get('date', invoice['date']),
                 'customer_id': data.get('customer_id', invoice['customer_id']),
-                'status': data.get('status', invoice['status'])
+                'status': data.get('status', invoice['status']),
+                'payment_date': data.get('payment_date', invoice.get('payment_date')),
+                'payment_info': data.get('payment_info', invoice.get('payment_info'))
             })
             
             with open(INVOICES_FILE, 'w') as f:
@@ -105,7 +109,7 @@ def update_invoice(invoice_id):
     
     return jsonify({'error': 'Invoice not found'}), 404
 
-@bp.route('/<invoice_id>', methods=['DELETE'])
+@invoices_bp.route('/api/invoices/<invoice_id>', methods=['DELETE'])
 @login_required
 def delete_invoice(invoice_id):
     ensure_invoices_file()

@@ -50,9 +50,19 @@ const Dashboard: React.FC = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
+                // Calculate date range for the last 30 days
+                const endDate = new Date();
+                const startDate = new Date();
+                startDate.setDate(startDate.getDate() - 30);
+
                 const [profitLoss, incomeExpenses, topCustomers] = await Promise.all([
                     axios.get('http://localhost:5000/api/reports/profit-loss'),
-                    axios.get('http://localhost:5000/api/reports/income-expenses'),
+                    axios.get('http://localhost:5000/api/reports/income-expenses', {
+                        params: {
+                            start_date: startDate.toISOString(),
+                            end_date: endDate.toISOString()
+                        }
+                    }),
                     axios.get('http://localhost:5000/api/reports/top-customers'),
                 ]);
 

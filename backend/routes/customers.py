@@ -3,7 +3,7 @@ from flask_login import login_required
 import json
 import os
 
-bp = Blueprint('customers', __name__, url_prefix='/api/customers')
+customers_bp = Blueprint('customers', __name__)
 
 CUSTOMERS_FILE = 'data/customers.json'
 
@@ -13,7 +13,7 @@ def ensure_customers_file():
         with open(CUSTOMERS_FILE, 'w') as f:
             json.dump([], f)
 
-@bp.route('/', methods=['GET'])
+@customers_bp.route('/api/customers', methods=['GET'])
 @login_required
 def get_customers():
     ensure_customers_file()
@@ -21,7 +21,7 @@ def get_customers():
         customers = json.load(f)
     return jsonify(customers), 200
 
-@bp.route('/', methods=['POST'])
+@customers_bp.route('/api/customers', methods=['POST'])
 @login_required
 def create_customer():
     data = request.get_json()
@@ -56,7 +56,7 @@ def create_customer():
     
     return jsonify(new_customer), 201
 
-@bp.route('/<customer_id>', methods=['PUT'])
+@customers_bp.route('/api/customers/<customer_id>', methods=['PUT'])
 @login_required
 def update_customer(customer_id):
     data = request.get_json()
@@ -85,7 +85,7 @@ def update_customer(customer_id):
     
     return jsonify({'error': 'Customer not found'}), 404
 
-@bp.route('/<customer_id>', methods=['DELETE'])
+@customers_bp.route('/api/customers/<customer_id>', methods=['DELETE'])
 @login_required
 def delete_customer(customer_id):
     ensure_customers_file()

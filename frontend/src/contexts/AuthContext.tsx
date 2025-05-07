@@ -2,11 +2,13 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
 // Configure axios defaults
+axios.defaults.baseURL = 'http://localhost:5000';
 axios.defaults.withCredentials = true;
+axios.defaults.headers.common['Content-Type'] = 'application/json';
 
 interface User {
+    id: string;
     username: string;
-    role: string;
 }
 
 interface AuthContextType {
@@ -40,7 +42,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Check if user is already logged in
         const checkAuth = async () => {
             try {
-                const response = await axios.get('http://localhost:5000/api/auth/me');
+                const response = await axios.get('/api/auth/me');
                 const userData = response.data;
                 setUser(userData);
                 setIsAuthenticated(true);
@@ -61,7 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const login = async (username: string, password: string) => {
         try {
-            const response = await axios.post('http://localhost:5000/api/auth/login', {
+            const response = await axios.post('/api/auth/login', {
                 username,
                 password,
             });
@@ -77,7 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const logout = async () => {
         try {
-            await axios.post('http://localhost:5000/api/auth/logout');
+            await axios.post('/api/auth/logout');
             setUser(null);
             setIsAuthenticated(false);
             localStorage.removeItem('isAuthenticated');
